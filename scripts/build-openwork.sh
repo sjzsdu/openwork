@@ -90,14 +90,18 @@ echo -e "${YELLOW}Step 4: Building OpenWork desktop app...${NC}"
 cd "$DESKTOP_DIR"
 pnpm tauri build
 
-# Step 5: Find the built executable
+# Step 5: Find the built executables
 BUILT_EXECUTABLE="$DESKTOP_DIR/src-tauri/target/release/openwork"
+BUILT_SERVER="$DESKTOP_DIR/src-tauri/target/release/openwork-server"
+BUILT_ORCHESTRATOR="$DESKTOP_DIR/src-tauri/target/release/openwork-orchestrator"
 
 if [ -f "$BUILT_EXECUTABLE" ]; then
     echo ""
     echo -e "${GREEN}=== Build Successful! ===${NC}"
-    echo "Executable: $BUILT_EXECUTABLE"
-    echo "Size: $(du -h "$BUILT_EXECUTABLE" | cut -f1)"
+    echo "Executables:"
+    echo "  - openwork:              $(du -h "$BUILT_EXECUTABLE" | cut -f1)"
+    [ -f "$BUILT_SERVER" ] && echo "  - openwork-server:       $(du -h "$BUILT_SERVER" | cut -f1)"
+    [ -f "$BUILT_ORCHESTRATOR" ] && echo "  - openwork-orchestrator: $(du -h "$BUILT_ORCHESTRATOR" | cut -f1)"
     
     # Step 6: Install to PATH
     # Auto-install if --yes flag or if running in terminal
@@ -105,9 +109,12 @@ if [ -f "$BUILT_EXECUTABLE" ]; then
         echo ""
         if [ "$INSTALL_AFTER_BUILD" = false ]; then
             echo -e "${YELLOW}Would you like to install OpenWork to your PATH?${NC}"
-            echo "This will copy the executable to ~/.local/bin or /usr/local/bin"
+            echo "This will copy all executables to ~/.local/bin or /usr/local/bin"
+            echo "  - openwork (desktop app)"
+            echo "  - openwork-server (server)"
+            echo "  - openwork-orchestrator (CLI orchestrator)"
             echo ""
-            read -p "Install now? [y/N] " -n 1 -r
+            read -p "Install all? [y/N] " -n 1 -r
             echo ""
             
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -129,17 +136,37 @@ if [ -f "$BUILT_EXECUTABLE" ]; then
             mkdir -p "$INSTALL_DIR"
         fi
         
-        if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ ! -w "/usr/local/bin" ]; then
-            echo "Need sudo to install to /usr/local/bin..."
-            sudo cp "$BUILT_EXECUTABLE" "$INSTALL_DIR/openwork"
-            sudo chmod +x "$INSTALL_DIR/openwork"
-        else
-            cp "$BUILT_EXECUTABLE" "$INSTALL_DIR/openwork"
-            chmod +x "$INSTALL_DIR/openwork"
-        fi
+        # Helper function to copy with sudo if needed
+        install_executable() {
+            local src="$1"
+            local name="$2"
+            if [ ! -f "$src" ]; then
+                echo "  ⚠️  $name not found, skipping"
+                return
+            fi
+            
+            if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ ! -w "/usr/local/bin" ]; then
+                sudo cp "$src" "$INSTALL_DIR/$name"
+                sudo chmod +x "$INSTALL_DIR/$name"
+            else
+                cp "$src" "$INSTALL_DIR/$name"
+                chmod +x "$INSTALL_DIR/$name"
+            fi
+            echo "  ✅ $name"
+        }
         
-        echo -e "${GREEN}✅ OpenWork installed to $INSTALL_DIR/openwork${NC}"
-        echo "You can now run 'openwork' from anywhere!"
+        echo ""
+        echo "Installing to $INSTALL_DIR..."
+        install_executable "$BUILT_EXECUTABLE" "openwork"
+        install_executable "$BUILT_SERVER" "openwork-server"
+        install_executable "$BUILT_ORCHESTRATOR" "openwork-orchestrator"
+        
+        echo ""
+        echo -e "${GREEN}✅ All OpenWork executables installed!${NC}"
+        echo "You can now run:"
+        echo "  - openwork"
+        echo "  - openwork-server"
+        echo "  - openwork-orchestrator"
     fi
 else
     echo -e "${RED}Build failed - executable not found at $BUILT_EXECUTABLE${NC}"
